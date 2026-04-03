@@ -125,10 +125,29 @@ def _call_claude(prompt: str) -> str:
 # ── Response parsing ──────────────────────────────────────────────────────────
 
 def _clean_response(raw: str) -> str:
-    """Strip markdown fences if Claude added them despite instructions."""
+    """
+    Strip markdown fences, preamble, or leading whitespace from LLM response.
+    Finds the first [ and last ] to extract the JSON array even if Claude
+    adds text before or after the array.
+    """
     raw = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.MULTILINE)
     raw = re.sub(r"\s*```$",          "", raw, flags=re.MULTILINE)
-    return raw.strip()
+    raw = raw.strip()
+
+    # Extract JSON array boundaries
+    start = raw.find("[")
+    end   = raw.rfind("]") + 1
+
+    if start != -1 and end > start:
+        return raw[start:end]
+
+    # Fallback: maybe it returned a single object instead of array
+    start = raw.find("{")
+    end   = raw.rfind("}") + 1
+    if start != -1 and end > start:
+        return "[" + raw[start:end] + "]"
+
+    return raw
 
 
 def _parse_profiles(raw_json: str) -> list[SuggestedProfile]:
@@ -236,12 +255,15 @@ def run_profile_recommender(state: SessionState) -> SessionState:
     # ── Build prompt ─────────────────────────────────────────────────────────
     profile_json = _profile_to_prompt_json(state)
 
-    prompt = PROFILE_RECOMMEND_PROMPT.format(
-        candidate_profile_json = profile_json,
-        location               = prefs.location,
-        work_type              = prefs.work_type,
-        seniority_preference   = prefs.seniority_preference,
-        salary_range           = _format_salary_range(prefs),
+    # Use .replace() not .format() — profile_json contains {} from JSON
+    # which breaks Python's str.format() with KeyError
+    prompt = (
+        PROFILE_RECOMMEND_PROMPT
+        .replace("{candidate_profile_json}", profile_json)
+        .replace("{location}",             prefs.location)
+        .replace("{work_type}",            prefs.work_type)
+        .replace("{seniority_preference}", prefs.seniority_preference)
+        .replace("{salary_range}",         _format_salary_range(prefs))
     )
 
     # ── LLM call + parse ─────────────────────────────────────────────────────
@@ -255,9 +277,10 @@ def run_profile_recommender(state: SessionState) -> SessionState:
             f"[profile_recommender] Primary attempt failed ({e}), trying fallback"
         )
         try:
-            fallback_prompt = PROFILE_RECOMMEND_FALLBACK_PROMPT.format(
-                candidate_profile_json = profile_json,
-                seniority_preference   = prefs.seniority_preference,
+            fallback_prompt = (
+                PROFILE_RECOMMEND_FALLBACK_PROMPT
+                .replace("{candidate_profile_json}", profile_json)
+                .replace("{seniority_preference}",   prefs.seniority_preference)
             )
             raw = _call_claude(fallback_prompt)
             profiles = _parse_profiles(raw)
