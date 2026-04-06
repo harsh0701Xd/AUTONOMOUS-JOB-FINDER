@@ -30,6 +30,8 @@ from agents.recommender.profile_recommender import (
     apply_user_confirmation,
     run_profile_recommender,
 )
+from agents.job_search.job_search_agent import node_job_search
+from agents.ranker.ranker_agent import node_ranker
 from core.state.session_state import SessionState
 
 logger = logging.getLogger(__name__)
@@ -147,6 +149,8 @@ def build_graph(use_postgres: bool = False):
     builder.add_node("parse_resume",       node_parse_resume)
     builder.add_node("recommend_profiles", node_recommend_profiles)
     builder.add_node("user_confirmation",  node_user_confirmation)
+    builder.add_node("search_jobs",        node_job_search)
+    builder.add_node("rank_results",       node_ranker)
 
     # Entry point
     builder.add_edge(START, "parse_resume")
@@ -165,8 +169,10 @@ def build_graph(use_postgres: bool = False):
         {"confirm": "user_confirmation", "end": END},
     )
 
-    # After confirmation, pipeline ends (Phase 2 will extend to job search)
-    builder.add_edge("user_confirmation", END)
+    # After confirmation → job search → rank → END
+    builder.add_edge("user_confirmation", "search_jobs")
+    builder.add_edge("search_jobs",       "rank_results")
+    builder.add_edge("rank_results",       END)
 
     # ── Checkpointer ─────────────────────────────────────────────────────────
     if use_postgres:
@@ -202,19 +208,17 @@ def create_session_config(session_id: str) -> dict:
     return {"configurable": {"thread_id": session_id}}
 
 
-def run_until_confirmation(
+async def run_until_confirmation(
     graph,
     initial_state: dict,
     session_id: str,
 ) -> dict:
     """
     Run the graph from START until it hits the confirmation interrupt.
-
-    Returns the state at the point of interruption — includes suggested_profiles
-    for the frontend to display to the user.
+    Uses ainvoke to support async nodes (e.g. job search agent).
     """
     config = create_session_config(session_id)
-    state = graph.invoke(initial_state, config=config)
+    state = await graph.ainvoke(initial_state, config=config)
     logger.info(
         f"[graph] Pipeline paused at confirmation gate — "
         f"session_id={session_id}"
@@ -222,7 +226,7 @@ def run_until_confirmation(
     return state
 
 
-def resume_after_confirmation(
+async def resume_after_confirmation(
     graph,
     session_id: str,
     selected_titles: list[str],
@@ -230,9 +234,7 @@ def resume_after_confirmation(
 ) -> dict:
     """
     Resume the graph after the user has confirmed their profile selections.
-
-    Uses LangGraph's Command(resume=...) pattern to pass the user's
-    selections back to the interrupt point in user_confirmation node.
+    Uses ainvoke to support async nodes (e.g. job search agent).
     """
     from langgraph.types import Command
 
@@ -243,7 +245,7 @@ def resume_after_confirmation(
         "custom_profiles": custom_profiles or [],
     }
 
-    state = graph.invoke(
+    state = await graph.ainvoke(
         Command(resume=resume_payload),
         config=config,
     )

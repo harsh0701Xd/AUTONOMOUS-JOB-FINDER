@@ -179,7 +179,7 @@ async def upload_resume(
     config = {"configurable": {"thread_id": session_id}}
 
     try:
-        final_state_dict = graph.invoke(initial_state, config=config)
+        final_state_dict = await graph.ainvoke(initial_state, config=config)
     except Exception as e:
         logger.error(f"[routes] Pipeline error for session {session_id}: {e}")
         update_session_status(session_id, "error")
@@ -286,7 +286,7 @@ async def confirm_profiles(
     }
 
     try:
-        final_state_dict = graph.invoke(
+        final_state_dict = await graph.ainvoke(
             Command(resume=resume_payload),
             config=config,
         )
