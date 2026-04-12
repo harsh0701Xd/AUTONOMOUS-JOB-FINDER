@@ -17,19 +17,19 @@ python-multipart>=0.0.9     # required for FastAPI file uploads
 
 # ── Database ──────────────────────────────────────────────────────────────────
 psycopg2-binary>=2.9.9      # Postgres driver (binary = no build deps)
-psycopg[binary]>=3.1.0      # psycopg3 — required by langgraph-checkpoint-postgres
+psycopg>=3.1.0              # psycopg3 — required by langgraph-checkpoint-postgres
+psycopg-binary>=3.1.0       # binary implementation of psycopg3
 psycopg-pool>=3.2.0         # connection pool for production Postgres checkpointer
-sqlalchemy>=2.0.0           # ORM for application tracking DB
 langgraph-checkpoint-postgres>=0.0.1  # LangGraph Postgres checkpointer
 
-# ── Embeddings & vector store ─────────────────────────────────────────────────
-sentence-transformers>=3.0.0   # local embeddings, zero API cost
-chromadb>=0.5.0                # local vector store (dev)
-# pinecone-client>=4.0.0       # uncomment for production vector store
+# ── Embeddings & vector store (uncomment when needed) ────────────────────────
+# sentence-transformers>=3.0.0   # pulls PyTorch (530MB) — enable when adding semantic ranking
+# chromadb>=0.5.0                # local vector store — enable when adding vector search
+# pinecone-client>=4.0.0         # production vector store
 
 # ── Job search APIs (Agent 3) ─────────────────────────────────────────────────
 httpx>=0.27.0         # async HTTP client for API calls
-aiohttp>=3.9.0        # async HTTP (Firecrawl / scraping)
+# aiohttp>=3.9.0      # uncomment if adding scraping sources
 
 # ── Hiring signals (Agent 5) ──────────────────────────────────────────────────
 feedparser>=6.0.11    # RSS feed parsing for news signals
@@ -47,6 +47,9 @@ structlog>=24.2.0       # structured JSON logging
 # ── MLOps (Upgrade Layer 4) ───────────────────────────────────────────────────
 # mlflow>=2.14.0        # uncomment when monitoring layer is built
 # wandb>=0.17.0         # uncomment when drift detection is built
+
+# ── Frontend ──────────────────────────────────────────────────────────────────
+streamlit>=1.35.0
 
 # ── Testing ───────────────────────────────────────────────────────────────────
 pytest>=8.2.0

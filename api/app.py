@@ -64,7 +64,16 @@ async def lifespan(app: FastAPI):
 
     from api.dependencies import get_graph
     try:
-        get_graph()
+        graph = get_graph()
+        # If using AsyncPostgresSaver, open the pool and run setup
+        checkpointer = getattr(graph, "checkpointer", None)
+        if checkpointer and hasattr(checkpointer, "conn"):
+            pool = getattr(checkpointer, "conn", None)
+            if pool and hasattr(pool, "open"):
+                await pool.open()
+                logger.info("[app] Async connection pool opened")
+            await checkpointer.setup()
+            logger.info("[app] Postgres checkpoint tables ready")
         logger.info("LangGraph pipeline ready.")
     except Exception as e:
         logger.error(f"Failed to initialise graph: {e}")
@@ -106,6 +115,13 @@ def create_app() -> FastAPI:
         allow_methods     = ["*"],
         allow_headers     = ["*"],
     )
+
+    # ── Root redirect → docs ─────────────────────────────────────────────────
+    from fastapi.responses import RedirectResponse
+
+    @app.get("/", include_in_schema=False)
+    async def root():
+        return RedirectResponse(url="/docs")
 
     # ── Routes ───────────────────────────────────────────────────────────────
     app.include_router(router, prefix="/api/v1", tags=["pipeline"])

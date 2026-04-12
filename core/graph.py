@@ -179,22 +179,26 @@ def build_graph(use_postgres: bool = False):
 
     # ── Checkpointer ─────────────────────────────────────────────────────────
     if use_postgres:
-        from langgraph.checkpoint.postgres import PostgresSaver
-        from psycopg_pool import ConnectionPool
-        db_url = os.getenv("DATABASE_URL")
-        if not db_url:
-            raise ValueError("DATABASE_URL must be set for Postgres checkpointer")
-        # Use a connection pool — keeps connections alive for the app lifetime
-        pool = ConnectionPool(
-            conninfo=db_url,
-            max_size=10,
-            kwargs={"autocommit": True},
-        )
-        checkpointer = PostgresSaver(pool)
-        checkpointer.setup()   # creates checkpoint tables if not exist
-        logger.info("[graph] Using Postgres checkpointer")
+        try:
+            from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+            from psycopg_pool import AsyncConnectionPool
+            db_url = os.getenv("DATABASE_URL")
+            if not db_url:
+                raise ValueError("DATABASE_URL not set")
+            pool = AsyncConnectionPool(
+                conninfo=db_url,
+                max_size=10,
+                open=False,
+            )
+            checkpointer = AsyncPostgresSaver(pool)
+            logger.info("[graph] Using Postgres checkpointer (async)")
+        except Exception as e:
+            logger.warning(
+                f"[graph] Postgres checkpointer unavailable ({e}), "
+                f"falling back to in-memory checkpointer"
+            )
+            checkpointer = MemorySaver()
     else:
-        # Development: in-memory checkpointer (state lost on process restart)
         checkpointer = MemorySaver()
         logger.info("[graph] Using in-memory checkpointer")
 
