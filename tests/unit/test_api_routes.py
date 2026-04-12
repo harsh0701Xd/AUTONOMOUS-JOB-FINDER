@@ -14,7 +14,7 @@ from __future__ import annotations
 import io
 import json
 import uuid
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -290,10 +290,8 @@ class TestUploadResume:
         state = _make_state(sid)
 
         mock_graph = MagicMock()
-        mock_graph.invoke.return_value = state.model_dump()
+        mock_graph.ainvoke = AsyncMock(return_value=state.model_dump())
 
-        # Patch at api.routes.extract_text — where the name is bound after import
-        # Patch api.routes.get_graph so no real LangGraph init happens
         with patch("api.routes.extract_text", return_value="A" * 300), \
              patch("api.routes.get_graph", return_value=mock_graph):
             r = self._upload(client, sid)
@@ -313,7 +311,7 @@ class TestUploadResume:
             preferences=UserPreferences(location="Bangalore"),
         )
         mock_graph = MagicMock()
-        mock_graph.invoke.return_value = failed_state.model_dump()
+        mock_graph.ainvoke = AsyncMock(return_value=failed_state.model_dump())
 
         with patch("api.routes.extract_text", return_value="A" * 300), \
              patch("api.routes.get_graph", return_value=mock_graph):
@@ -367,8 +365,12 @@ class TestConfirmProfiles:
             ],
             awaiting_confirmation=False,
         )
+        mock_checkpoint = MagicMock()
+        mock_checkpoint.values = confirmed_state.model_dump()
+
         mock_graph = MagicMock()
-        mock_graph.invoke.return_value = confirmed_state.model_dump()
+        mock_graph.ainvoke = AsyncMock(return_value=confirmed_state.model_dump())
+        mock_graph.get_state.return_value = mock_checkpoint
 
         with patch("api.routes.get_graph", return_value=mock_graph):
             r = self._confirm(client, sid, ["Lead Data Scientist"])

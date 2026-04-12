@@ -132,15 +132,21 @@ class RankedJob(BaseModel):
 # ─────────────────────────────────────────────
 
 class HiringSignal(BaseModel):
-    company: str
-    signal_type: Literal[
-        "funding", "expansion", "product_launch", "hiring_freeze", "layoff", "headcount_growth"
+    model_config = ConfigDict(extra="ignore")
+    company:              str
+    signal_type:          Literal[
+        "funding", "expansion", "product_launch",
+        "headcount_growth", "hiring_freeze", "layoff", "neutral"
     ]
-    signal_strength: Literal["high", "medium", "low"]
-    summary: str
-    source_url: str
-    source_date: datetime
-    hiring_momentum_score: float = 0.0  # 0.0 – 1.0
+    signal_strength:      Literal["high", "medium", "low"]
+    summary:              str
+    is_positive:          bool = True
+    confidence:           float = 0.5
+    source_url:           str = ""
+    source_date:          Optional[datetime] = None
+    source_name:          str = ""
+    jobs_you_matched:     int = 0        # ties signal back to user's ranked results
+    relevant_to_profiles: list[str] = Field(default_factory=list)
 
 
 # ─────────────────────────────────────────────
@@ -193,8 +199,9 @@ class SessionState(BaseModel):
     # Step 5: Ranked output
     ranked_jobs: list[RankedJob] = Field(default_factory=list)
 
-    # Step 6: Hiring signals (async)
+    # Step 6: Hiring signals
     hiring_signals: list[HiringSignal] = Field(default_factory=list)
+    watch_list:     list[HiringSignal] = Field(default_factory=list)
 
     # Step 7: Final assembled payload ready for frontend
     results_ready: bool = False

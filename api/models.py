@@ -122,21 +122,26 @@ class JobResult(BaseModel):
 
 
 class HiringSignalResult(BaseModel):
-    company: str
-    signal_type: str
-    signal_strength: Literal["high", "medium", "low"]
-    summary: str
-    source_url: str
-    source_date: str
-    hiring_momentum_score: float
+    company:              str
+    signal_type:          str
+    signal_strength:      Literal["high", "medium", "low"]
+    summary:              str
+    is_positive:          bool = True
+    confidence:           float = 0.5
+    source_url:           str = ""
+    source_date:          Optional[str] = None
+    source_name:          str = ""
+    jobs_you_matched:     int = 0
+    relevant_to_profiles: list[str] = Field(default_factory=list)
 
 
 class ResultsResponse(BaseModel):
-    session_id: str
-    total_jobs: int
-    jobs: list[JobResult]
-    watch_list: list[HiringSignalResult] = Field(default_factory=list)
-    message: str
+    session_id:      str
+    total_jobs:      int
+    jobs:            list[JobResult]
+    hiring_signals:  list[HiringSignalResult] = Field(default_factory=list)
+    watch_list:      list[HiringSignalResult] = Field(default_factory=list)
+    message:         str
 
 
 # ── Health check ──────────────────────────────────────────────────────────────

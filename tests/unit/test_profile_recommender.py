@@ -189,7 +189,10 @@ class TestParseProfiles:
             _parse_profiles("not json {{{")
 
     def test_raises_on_non_array(self):
-        with pytest.raises(ValueError, match="Expected JSON array"):
+        # _clean_response wraps single objects in [] so they become
+        # a 1-item list. The array check passes but profile validation
+        # fails — ends up as "Too few valid profiles".
+        with pytest.raises(ValueError, match="Too few valid profiles"):
             _parse_profiles('{"title": "DS"}')
 
     def test_raises_when_too_few_valid_profiles(self):

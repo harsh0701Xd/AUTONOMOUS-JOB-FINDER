@@ -467,26 +467,33 @@ async def get_results(session_id: str) -> ResultsResponse:
         for j in state.ranked_jobs
     ]
 
-    # Map hiring signals
-    watch_list = []
-    for s in state.hiring_signals:
-        from api.models import HiringSignalResult
-        watch_list.append(HiringSignalResult(
-            company                = s.company,
-            signal_type            = s.signal_type,
-            signal_strength        = s.signal_strength,
-            summary                = s.summary,
-            source_url             = s.source_url,
-            source_date            = s.source_date.isoformat(),
-            hiring_momentum_score  = round(s.hiring_momentum_score, 3),
-        ))
+    # Map hiring signals (anchored to ranked results)
+    def _signal_to_response(s) -> HiringSignalResult:
+        return HiringSignalResult(
+            company              = s.company,
+            signal_type          = s.signal_type,
+            signal_strength      = s.signal_strength,
+            summary              = s.summary,
+            is_positive          = s.is_positive,
+            confidence           = round(s.confidence, 3),
+            source_url           = s.source_url or "",
+            source_date          = s.source_date.isoformat() if s.source_date else None,
+            source_name          = s.source_name or "",
+            jobs_you_matched     = s.jobs_you_matched,
+            relevant_to_profiles = s.relevant_to_profiles,
+        )
+
+    from api.models import HiringSignalResult
+    hiring_signals = [_signal_to_response(s) for s in state.hiring_signals]
+    watch_list     = [_signal_to_response(s) for s in state.watch_list]
 
     return ResultsResponse(
-        session_id  = session_id,
-        total_jobs  = len(jobs),
-        jobs        = jobs,
-        watch_list  = watch_list,
-        message     = f"Found {len(jobs)} matching jobs across your selected profiles.",
+        session_id      = session_id,
+        total_jobs      = len(jobs),
+        jobs            = jobs,
+        hiring_signals  = hiring_signals,
+        watch_list      = watch_list,
+        message         = f"Found {len(jobs)} matching jobs across your selected profiles.",
     )
 
 
