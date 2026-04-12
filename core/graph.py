@@ -32,6 +32,7 @@ from agents.recommender.profile_recommender import (
 )
 from agents.job_search.job_search_agent import node_job_search
 from agents.ranker.ranker_agent import node_ranker
+from agents.signals.signals_agent import node_signals
 from core.state.session_state import SessionState
 
 logger = logging.getLogger(__name__)
@@ -151,6 +152,7 @@ def build_graph(use_postgres: bool = False):
     builder.add_node("user_confirmation",  node_user_confirmation)
     builder.add_node("search_jobs",        node_job_search)
     builder.add_node("rank_results",       node_ranker)
+    builder.add_node("hiring_signals",     node_signals)
 
     # Entry point
     builder.add_edge(START, "parse_resume")
@@ -169,20 +171,27 @@ def build_graph(use_postgres: bool = False):
         {"confirm": "user_confirmation", "end": END},
     )
 
-    # After confirmation → job search → rank → END
+    # After confirmation → job search → rank → signals → END
     builder.add_edge("user_confirmation", "search_jobs")
     builder.add_edge("search_jobs",       "rank_results")
-    builder.add_edge("rank_results",       END)
+    builder.add_edge("rank_results",      "hiring_signals")
+    builder.add_edge("hiring_signals",     END)
 
     # ── Checkpointer ─────────────────────────────────────────────────────────
     if use_postgres:
-        # Production: persist state to Postgres across sessions
-        # Requires DATABASE_URL in environment
         from langgraph.checkpoint.postgres import PostgresSaver
+        from psycopg_pool import ConnectionPool
         db_url = os.getenv("DATABASE_URL")
         if not db_url:
             raise ValueError("DATABASE_URL must be set for Postgres checkpointer")
-        checkpointer = PostgresSaver.from_conn_string(db_url)
+        # Use a connection pool — keeps connections alive for the app lifetime
+        pool = ConnectionPool(
+            conninfo=db_url,
+            max_size=10,
+            kwargs={"autocommit": True},
+        )
+        checkpointer = PostgresSaver(pool)
+        checkpointer.setup()   # creates checkpoint tables if not exist
         logger.info("[graph] Using Postgres checkpointer")
     else:
         # Development: in-memory checkpointer (state lost on process restart)
